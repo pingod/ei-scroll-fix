@@ -1,0 +1,30 @@
+# NOTICE
+
+This project contains **no code** from deskflow, Synergy, Hyprland, aquamarine
+or libei. It is an `LD_PRELOAD` shim that interposes four symbols exported by
+`libei.so` at runtime, plus a test stub that defines the same four symbols with
+trivial bodies.
+
+The files under `docs/` quote short excerpts of MIT/GPL-licensed source and of
+disassembly produced by `objdump` / `otool` for the purpose of documenting the
+bug. Those excerpts remain under their original licenses:
+
+| Component | License | Upstream |
+|---|---|---|
+| deskflow | GPL-2.0 | https://github.com/deskflow/deskflow |
+| Synergy 3 | GPL-2.0 (core) / proprietary (GUI) | https://symless.com/synergy |
+| Hyprland | BSD-3-Clause | https://github.com/hyprwm/Hyprland |
+| aquamarine | BSD-3-Clause | https://github.com/hyprwm/aquamarine |
+| libei | MIT | https://gitlab.freedesktop.org/libinput/libei |
+
+The symbol names interposed (`ei_event_scroll_get_dx`, `ei_event_scroll_get_dy`,
+`ei_event_scroll_get_discrete_dx`, `ei_event_scroll_get_discrete_dy`) are
+libei's public API; naming them is required for interposition and is not a
+derivative work.
+
+`test/ei_stub.c` is an original file — it defines the four symbols with bodies
+that return global variables so the unit test can run without a live session.
+
+Trademarks belong to their respective owners. This is an independent,
+unofficial workaround; it is not affiliated with or endorsed by Symless,
+deskflow, or Hyprland.

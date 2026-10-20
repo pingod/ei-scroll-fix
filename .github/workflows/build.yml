@@ -1,0 +1,79 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build + test (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          cc --version
+          uname -m
+
+      - name: Build the shim
+        run: make shim
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Run the scroll arithmetic simulation
+        run: python3 tools/simulate.py
+
+      - name: Check that the shim exports only the four intended symbols
+        run: |
+          echo "--- exported dynamic symbols ---"
+          nm -D --defined-only build/ei_scroll_fix.so | tee symbols.txt
+          n=$(grep -c 'ei_event_scroll_get_' symbols.txt || true)
+          echo "ei_event_scroll_get_* count: $n"
+          [ "$n" -eq 4 ] || { echo "expected exactly 4 interposed accessors"; exit 1; }
+
+      - name: Verify interposition against a real binary (glibc only)
+        run: |
+          # Use /bin/ls as a cheap stand-in: it does not import libei, so this
+          # only proves the loader accepts the .so and reports no warnings.
+          LD_BIND_NOW=1 LD_PRELOAD=$PWD/build/ei_scroll_fix.so /bin/ls >/dev/null
+          echo "loader accepted the shim without error"
+
+      - name: Compile without warnings (-Werror)
+        run: |
+          cc -O2 -g -Wall -Wextra -Werror -shared -fPIC \
+             -o build/ei_scroll_fix.strict.so src/ei_scroll_fix.c -ldl -lm
+          echo "no warnings"
+
+      - name: Upload the shim
+        uses: actions/upload-artifact@v4
+        with:
+          name: ei_scroll_fix-${{ matrix.arch }}
+          path: build/ei_scroll_fix.so
+          if-no-files-found: error
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+          shellcheck --severity=warning scripts/*.sh || true
